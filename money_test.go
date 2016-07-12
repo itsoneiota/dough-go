@@ -150,7 +150,7 @@ func TestCanRejectMismatchedCurrencyWhenSubtracting(t *testing.T) {
 func TestCanMultiply(t *testing.T) {
 	var cases = []struct {
 		a    string
-		f    int64
+		f    int
 		want string
 	}{
 		{"123.45", 1, "123.45"},
