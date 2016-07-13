@@ -210,3 +210,70 @@ func TestCanRejectMismatchedCurrencyWhenComparing(t *testing.T) {
 		}
 	}
 }
+
+func TestCanAllocate(t *testing.T) {
+	var cases = []struct {
+		a      string
+		ratios []uint
+		want   []string
+	}{
+		{"0.00", []uint{1, 1, 1}, []string{"0.00", "0.00", "0.00"}},
+		{"0.01", []uint{1, 1, 1}, []string{"0.01", "0.00", "0.00"}},
+		{"0.02", []uint{1, 1, 1}, []string{"0.01", "0.01", "0.00"}},
+		{"0.03", []uint{1, 1, 1}, []string{"0.01", "0.01", "0.01"}},
+		{"0.04", []uint{1, 1, 1}, []string{"0.02", "0.01", "0.01"}},
+		{"0.05", []uint{1, 1, 1}, []string{"0.02", "0.02", "0.01"}},
+		{"1.00", []uint{0, 1, 0}, []string{"0.00", "1.00", "0.00"}},
+		{"0.03", []uint{0, 5, 0}, []string{"0.00", "0.03", "0.00"}},
+		{"3.00", []uint{1, 1, 1}, []string{"1.00", "1.00", "1.00"}},
+		{"1.00", []uint{1, 1, 1}, []string{"0.34", "0.33", "0.33"}},
+		{"0.03", []uint{0, 5, 0}, []string{"0.00", "0.03", "0.00"}},
+		{"0.03", []uint{0, 4, 2}, []string{"0.00", "0.02", "0.01"}},
+
+		// Copied from MoneyTest.php
+		{"1.05", []uint{3, 7}, []string{"0.32", "0.73"}},
+		{"0.05", []uint{1, 1}, []string{"0.03", "0.02"}},
+		{"300.00", []uint{122, 878}, []string{"36.60", "263.40"}},
+		{"300.00", []uint{122, 0, 878}, []string{"36.60", "0.00", "263.40"}},
+		{"120.00", []uint{20, 100}, []string{"20.00", "100.00"}},
+
+		// One deviation from the PHP version.
+		// If weightings are equal, the amount will be shared.
+		{"300.00", []uint{0}, []string{"300.00"}},
+		{"300.00", []uint{0, 0, 0}, []string{"100.00", "100.00", "100.00"}},
+
+		// Repeat all of the above with negatives.
+		{"-0.00", []uint{1, 1, 1}, []string{"0.00", "0.00", "0.00"}},
+		{"-0.01", []uint{1, 1, 1}, []string{"-0.01", "0.00", "0.00"}},
+		{"-0.02", []uint{1, 1, 1}, []string{"-0.01", "-0.01", "0.00"}},
+		{"-0.03", []uint{1, 1, 1}, []string{"-0.01", "-0.01", "-0.01"}},
+		{"-0.04", []uint{1, 1, 1}, []string{"-0.02", "-0.01", "-0.01"}},
+		{"-0.05", []uint{1, 1, 1}, []string{"-0.02", "-0.02", "-0.01"}},
+		{"-1.00", []uint{0, 1, 0}, []string{"0.00", "-1.00", "0.00"}},
+		{"-0.03", []uint{0, 5, 0}, []string{"0.00", "-0.03", "0.00"}},
+		{"-3.00", []uint{1, 1, 1}, []string{"-1.00", "-1.00", "-1.00"}},
+		{"-1.00", []uint{1, 1, 1}, []string{"-0.34", "-0.33", "-0.33"}},
+		{"-0.03", []uint{0, 5, 0}, []string{"0.00", "-0.03", "0.00"}},
+		{"-0.03", []uint{0, 4, 2}, []string{"0.00", "-0.02", "-0.01"}},
+		{"-1.05", []uint{3, 7}, []string{"-0.32", "-0.73"}},
+		{"-0.05", []uint{1, 1}, []string{"-0.03", "-0.02"}},
+		{"-300.00", []uint{122, 878}, []string{"-36.60", "-263.40"}},
+		{"-300.00", []uint{122, 0, 878}, []string{"-36.60", "0.00", "-263.40"}},
+		{"-120.00", []uint{20, 100}, []string{"-20.00", "-100.00"}},
+		{"-300.00", []uint{0}, []string{"-300.00"}},
+		{"-300.00", []uint{0, 0, 0}, []string{"-100.00", "-100.00", "-100.00"}},
+	}
+	for ci, c := range cases {
+		a, _ := New("GBP", c.a)
+		res := a.Share(c.ratios)
+		if len(c.ratios) != len(res) {
+			t.Errorf("Case %d. Incorrect number of allocations returned. Expected %d, got %d: %v", ci, len(c.ratios), len(res), res)
+			return
+		}
+		for i := range c.want {
+			if c.want[i] != res[i].Amount() {
+				t.Errorf("Case %d: Sharing %s into (%v), portion %d: Expected %s, got %s", ci, c.a, c.ratios, i, c.want[i], res[i].Amount())
+			}
+		}
+	}
+}

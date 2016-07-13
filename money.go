@@ -3,10 +3,10 @@ package dough
 
 import (
 	"fmt"
+	"golang.org/x/text/currency"
+	"math"
 	"regexp"
 	"strconv"
-
-	"golang.org/x/text/currency"
 )
 
 // Money is a value object representing a monetary amount.
@@ -48,11 +48,11 @@ func strToInt(c currency.Unit, amt string) (int, error) {
 	}
 	digits := m[2] + m[4]
 	a, err := strconv.Atoi(digits)
-	if m[1] == "-" {
-		a *= -1
-	}
 	if err != nil {
 		return 0, fmt.Errorf("unable to parse amount: %v", err)
+	}
+	if m[1] == "-" {
+		a *= -1
 	}
 	return a, nil
 }
@@ -135,4 +135,65 @@ func (x Money) Cmp(y Money) (c int, err error) {
 	}
 
 	return
+}
+
+// Share allocates portions of a Money's value between parties based on weightings given.
+// Spare pennies are distributed among parties evenly, from first to last.
+func (x Money) Share(weightings []uint) []Money {
+	n := len(weightings)
+	var sum uint
+	for _, w := range weightings {
+		sum += w
+	}
+	if sum == 0 {
+		for i := range weightings {
+			weightings[i] = 1
+		}
+		sum = uint(n)
+	}
+	ratios := make([]float64, n)
+	for i := range weightings {
+		ratios[i] = float64(weightings[i]) / float64(sum)
+	}
+
+	allocations := make([]int, n)
+	fa := float64(x.a)
+	rem := x.a
+	for i := range ratios {
+		a := int(math.Trunc(ratios[i] * fa))
+		allocations[i] = a
+		rem -= a
+	}
+	d := 1
+	if rem < 0 {
+		d = -1
+	}
+	for i := 0; rem != 0; i++ {
+		ind := i % n
+		if weightings[ind] == 0 {
+			continue
+		}
+		allocations[ind] += d
+		rem += (-d)
+	}
+
+	// Double-check allocation to make sure we haven't made or lost pennies.
+	// It would be _very_ bad to get this wrong.
+	total := 0
+	for i := range allocations {
+		total += allocations[i]
+	}
+	if total != x.a {
+		panic(fmt.Sprintf("dough package: bad allocation. Started with %d atoms, allocated %d. Weightings=%v", x.a, total, weightings))
+	}
+
+	res := make([]Money, len(allocations))
+	for i := range allocations {
+		res[i] = Money{
+			x.c,
+			allocations[i],
+		}
+	}
+
+	return res
 }
